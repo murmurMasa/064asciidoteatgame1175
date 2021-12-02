@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ドットイートゲーム</title>
+<script>
+var canvas, context;                //カンバス
+var player, enemy = new Array(2);   //プレイヤー、敵
+var life = 3, status = "ready";     //ライフ、ステータス
+var timer, delay = 100;             //タイマー
+
+//マップ
+var map = [  //０　何もない通路　１　壁　２　ドット（エサ）
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,1,2,2,2,2,2,2,2,2,2,2,2,1,
+    1,0,1,2,1,1,2,1,2,1,1,1,1,2,1,
+    1,0,0,2,1,2,2,1,2,2,1,2,2,2,1,
+    1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,
+    0,0,1,2,2,2,2,2,2,2,2,2,1,0,0,
+    1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,
+    0,0,0,2,1,2,1,0,1,2,1,2,0,0,0,
+    1,1,1,2,1,2,1,0,1,2,1,2,1,1,1,
+    0,0,1,2,2,2,2,2,2,2,2,2,1,0,0,
+    1,1,1,2,1,2,1,1,1,2,1,2,1,1,1,
+    1,2,2,2,1,2,2,1,2,2,1,2,0,0,1,
+    1,2,1,1,1,1,2,1,2,1,1,2,1,0,1,
+    1,2,2,2,2,2,2,2,2,2,2,2,1,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,];
+
+function GameObject(x, y, image, checkPlayer) {     //GameObjectクラスの定義
+   //プロパティ（座標、方向、画像）
+   this.x = x;                      //キャラクターの現在位置
+   this.y = y;
+   this.ox = x;                     //キャラクターの初期位置
+   this.oy = y;
+   this.dir = "";                   //進む方向
+   this.image = new Image();        //キャラクターの画像を設定
+   this.image.src = image;
+   this.checkPlayer = checkPlayer;  //プレイヤーか敵かを表すフラグ（true　プレイヤー、false　敵）
+}
+
+GameObject.prototype.init = function() {
+    //初期化
+    this.x = this.ox;
+    this.y = this.oy;
+    this.dir = "";
+}
+
+GameObject.prototype.move = function() {
+    //移動
+    var x = this.x, y = this.y;
+    if (this.dir == "U") y = this.y - 1;    //進む方向（Ｕ上、Ｄ下、Ｌ左、Ｒ右）に応じて座標を計算
+    if (this.dir == "D") y = this.y + 1;
+    if (this.dir == "L") x = this.x - 1;
+    if (this.dir == "R") x = this.x + 1;
+    if (x == -1) x = 14;                    //ワープ通路なら反対側に移動
+    if (x == 15) x = 0;
+    if (map[x+y*15] != 1) {         //移動先が１（＝壁）じゃなければ
+       this.x = x;
+       this.y = y;
+       //プレイヤーがドットを通過
+       if ((this.checkPlayer) && (map[x+y*15] == 2)) {
+           map[x+y*15] = 3;         //ドットがあったところをいったん３に置き換える
+       }
+    }
+
+    //描画
+    context.drawImage(this.image, this.x*32, this.y*32+32); //キャラクター画像、キャンバス上の座標
+}
+
+function init() {
+    //キャンバスの取得
+    canvas = document.getElementById("map");        //キャンバスのID
+    context = canvas.getContext("2d");
+    context.textAlign = "left";                     //文字の設定　左揃え、上揃え、大きさ32ピクセル　フォント名arial
+    context.textBaseline = "top";
+    context.font = "32px 'arial'";
+
+    //プレイヤー、敵の作成
+    player = new GameObject(7, 7, "mei.png", true);
+    enemy[0] = new GameObject(1, 1, "ojiyan.png", false);
+    enemy[1] = new GameObject(13, 13, "matsu.png", false);  //キャラクターの初期位置、キャラクター画像のファイル名、true プレイヤー　false　敵
+
+    //マップの描画
+    drawMap();
+}
+
+function drawMap() {
+    //キャンバスのクリア
+    context.clearRect(0, 0, canvas.width, canvas.height);   //キャンバスの横幅、高さ
+
+    //マップの描画
+    var cnt = 0;
+    for (var y=0; y<15; y++) {      //横15マス、縦15マス分ループ
+       for (var x=0; x<15; x++) {
+           if (map[x+y*15] == 1) {  //マップデータが1の時
+              //壁
+              context.fillStyle = "#0000FF";        //青色で壁（32×32ピクセルの矩形）を描く
+              context.fillRect(x*32, y*32+32, 32, 32);
+           } else if (map[x+y*15] == 2) {           //マップデータが２のとき
+              //ドット
+              context.fillStyle = "#FFFF00";        //黄色でドット（6x6ピクセルの矩形）を描く
+              context.fillRect(x*32+13, y*32+32+13, 6, 6);
+              cnt++;           
+           }
+       }
+    }
+    if (cnt == 0) status = "clear";     //マップデータに2（ドット）が無かったらゲームクリア
+}
+
+function startGame() {
+    //初期化
+    life = 3;
+    status = "play";
+    player.init();
+    for (var i=0; i<enemy.length; i++) enemy[i].init();
+    for (var i=0; i<map.length; i++) if (map[i] == 3) map[i] = 2;   //マップデータが３になっていたら２に戻す
+
+    //ゲーム開始
+    document.getElementById("start").disabled = true;   //スタートボタンのID、スタートボタンを無効にする
+    main();
+}
+
+function main() {
+    //タイマー
+    timer = setTimeout(main, delay);    //変数delayで指定された時間がたったらmain()関数を実行する
+    if (delay == 1000) delay = 100;     //delayが1000なら100に戻す
+
+    //マップの描画
+    drawMap();
+
+    //プレイヤーの移動
+    player.move();
+
+    //敵の移動
+    for (var i=0; i<enemy.length; i++) {
+        if(enemy[i].x > player.x) enemy[i].dir ="L";    //プレイヤーを追いかける
+        if(enemy[i].x < player.x) enemy[i].dir ="R";
+        if(enemy[i].y > player.y) enemy[i].dir ="U";
+        if(enemy[i].y < player.y) enemy[i].dir ="D";
+        var rnd = Math.floor(Math.random() * 10);       //0～9の乱数
+        if (rnd == 1) enemy[i].dir = "L";               //ランダムな方向に動く
+        if (rnd == 2) enemy[i].dir = "R";
+        if (rnd == 3) enemy[i].dir = "U";
+        if (rnd == 4) enemy[i].dir = "D";
+        if (rnd == 5) enemy[i].dir = "";
+        if (rnd == 6) enemy[i].dir = "";
+        enemy[i].move();
+
+        //衝突
+        if ((enemy[i].x == player.x) && (enemy[i].y == player.y)) { //プレイヤーの位置と敵の位置が同じなら
+           life--;
+           player.init();
+           for (var i=0; i<enemy.length; i++) enemy[i].init()       //プレイヤーと敵の位置を初期化
+           delay = 1000;           
+        }
+    }
+
+    //スコア、ライフの描画
+    context.fillStyle = "#FFFFFF";
+    context.fillText("LIFE:" + ("00"+life).slice(-2), 0, 0);    //白色で残りライフを表示 右から2文字を取り出す
+
+    //クリア／ゲームオーバー
+    if ((status == "clear") || (life == 0)) {
+        if (status == "clear") context.fillText("Clear!!", 192,320);
+        if (life == 0) context.fillText("Game Over!!", 150, 320);
+        //ゲーム終了
+        clearTimeout(timer);        //タイマーをキャンセル
+        document.getElementById("start").disabled = false;  //スタートボタンを有効にする
+    }
+}
+
+document.onkeydown = function(e) { //e=押したキー
+   //方向キーの上下左右で移動
+   if ((e.key == "ArrowUp") || (e.key == "Up")) player.dir = "U";
+   if ((e.key == "ArrowDown") || (e.key == "Down")) player.dir = "D";
+   if ((e.key == "ArrowLeft") || (e.key == "Left")) player.dir = "L";
+   if ((e.key == "ArrowRight") || (e.key == "Right")) player.dir = "R";
+}
+
+document.onkeyup = function(e) {    //キーを放したらプレイヤーを止める
+   //停止
+   player.dir = "";
+}
+</script>
+</head>
+<body onload="init()">
+<p>ドットイートゲーム</p>
+<input type="button" id="start" value="スタート" onclick="startGame()">
+<hr>
+<canvas id="map" width="480" height="544" style="background-color:#000000">
+</canvas>
+</body>
+</html>
